@@ -43,33 +43,38 @@ int main(int argc, char *argv[])
 
     if (bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0)
         error("ERROR on binding");
+    
+    while(1)
+    {
+       listen(sockfd, 5);  // 5 simultaneous connection at most
 
-    listen(sockfd, 5);  // 5 simultaneous connection at most
+       //accept connections
+       newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
 
-    //accept connections
-    newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
+       if (newsockfd < 0)
+          error("ERROR on accept");
 
-    if (newsockfd < 0)
-     error("ERROR on accept");
+       int n;
+       char buffer[2048];
 
-    int n;
-    char buffer[256];
+       memset(buffer, 0, 2048);  // reset memory
+    
+       //read client's message
+       n = read(newsockfd, buffer, 2048);
+       if (n < 0) 
+       {
+          error("ERROR reading from socket");
+          exit(1);
+       }
+       if (n == 0) break;
 
-    memset(buffer, 0, 256);  // reset memory
+       printf("%s\n", buffer);
 
-    /*
-    //read client's message
-    n = read(newsockfd, buffer, 255);
-    if (n < 0) error("ERROR reading from socket");
-    printf("Here is the message: %s\n", buffer);
-    */
+       //send response to browser
 
-    //reply to client
-    char example_message[] = "GET /hello.htm HTTP/1.1\r\nHost: localhost\r\nAccept-Language:en-us\r\nAccept-Encoding: gzip, deflate\r\nConnection: Keep-Alive\r\n";
-    n = write(newsockfd, example_message, strlen(example_message));
-    if (n < 0) error("ERROR writing to socket");
-
-    close(newsockfd);  // close connection
+       close(newsockfd);
+    }
+         
     close(sockfd);
 
     return 0;
