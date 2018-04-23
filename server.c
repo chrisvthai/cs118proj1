@@ -74,6 +74,8 @@ void parseHeader(char* header, int sockfd)
    dir = opendir(".");
    char statusCode[50];
    memset(statusCode, 0, 50);
+   long int total_size;
+   char* final_output;
    while((entry = readdir(dir)) != NULL) //NULL if no more entries
    {
       int s = strcasecmp(entry->d_name, filename);
@@ -82,11 +84,13 @@ void parseHeader(char* header, int sockfd)
       //printf("%d\n", s);
       if (s == 0)
       {
-         strcpy(statusCode, " 200 OK\r\n");
-	 strcat(ret, statusCode);
+        strcpy(statusCode, " 200 OK\r\n");
+        strcat(ret, statusCode);
 
-	 //Found the file, attach message body
-	  FILE *fp;
+        //printf("%s\n", ret);
+
+        //Found the file, attach message body
+        FILE *fp;
 
         fp = fopen(entry->d_name, "rb");
 
@@ -94,7 +98,7 @@ void parseHeader(char* header, int sockfd)
         long int size = ftell(fp) + 1;
         fseek(fp, 0, SEEK_SET);
 
-        printf("File size is: %d\n", size);
+        //printf("File size is: %d\n", size);
 
         char *requested_file;
         requested_file = (char *) malloc(size);
@@ -102,17 +106,33 @@ void parseHeader(char* header, int sockfd)
         for (int i = 0; i < size; i++)
                 fread(requested_file, size, 1, fp);
 
-        printf("%s", requested_file);
-         break;
+        printf("%s\n", requested_file);
+
+        char content_len[200];
+        memset(content_len, 0, 200);
+        sprintf(content_len, "Content-Length: %ld\r\n\r\n", size);
+        total_size = strlen(ret) + size + strlen(content_len);
+        final_output = (char *) malloc(total_size);
+        strcpy(final_output, ret);
+        //printf("%s\n", final_output);
+        strcat(final_output, content_len);
+        //printf("%s\n", final_output);
+        strncat(final_output, requested_file, size);    
       }    
    }
    if (strlen(statusCode) == 0)
    {
-      strcpy(statusCode, " 404 Not Found\r\n");
+      strcpy(statusCode, " 404 Not Found\r\n\r\n");
       strcat(ret, statusCode);
+      total_size = strlen(ret);
+      final_output = (char *) malloc(total_size);
+      strcpy(final_output, ret);
    }
    closedir(dir);
-   printf("%s\n", ret);
+
+   write(sockfd, final_output, total_size);
+   printf("%s\n", final_output);
+   free(final_output);
 }
 
 int main(int argc, char *argv[])
