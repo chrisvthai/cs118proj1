@@ -11,12 +11,88 @@
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>  /* signal name macros, and the kill() prototype */
-
+#include <dirent.h>
+#include <strings.h>
 
 void error(char *msg)
 {
     perror(msg);
     exit(1);
+}
+
+void parseHeader(char* header)
+{
+   char ret[2048]; //add more if necessary, up to 800,000,000
+   int retIndex = 0;
+   memset(ret, 0, 2048); 
+
+   int x;
+   int startIndex = -1;
+   int endIndex = -1;
+   char filename[2048];
+   int fileIndex = 0;
+   memset(filename, 0, 2048);
+   
+   char extension[10];
+   int extIndex = 0;
+   memset(extension, 0, 10);
+
+   //get request line
+   int endOfRequestLine;
+   for (x = 0; x < strlen(header); x++)
+   {
+      if (header[x] == '\r' && header[x+1] == '\n') 
+      {  
+         endOfRequestLine = x;
+         break;
+      }
+      if (header[x] == '/' && startIndex == -1) startIndex = x + 1;
+      else if (header[x] == '/') endIndex = x - 5; 
+   }
+
+   //fprintf(stdout, "%d\n", startIndex);
+
+   //store file name
+   if (startIndex == endIndex) return;
+   for (x = startIndex; x < endIndex; x++)
+   {  
+      printf("%c\n", header[x]);
+      filename[fileIndex] = header[x];
+      fileIndex++;
+   }   
+    
+   //get HTTP/1.1
+   for (x = endIndex + 1; x < endOfRequestLine; x++)
+   {   
+      ret[retIndex] = header[x];
+      retIndex++;
+   } 
+   
+   //look for the file 
+   DIR* dir;
+   struct dirent* entry;
+   dir = opendir(".");
+   char statusCode[50];
+   memset(statusCode, 0, 50);
+   while((entry = readdir(dir)) != NULL) //NULL if no more entries
+   {
+      int s = strcmp(entry->d_name, filename);
+      printf("%s\n", entry->d_name);
+      printf("%s\n", filename);
+      printf("%d\n", s);
+      if (s == strlen(filename))
+      {
+         strcpy(statusCode, " 200 OK\r\n");
+         break;
+      }
+      else 
+      {
+         strcpy(statusCode, " 404 Not Found\r\n");
+      }    
+   }
+   closedir(dir);
+   strcat(ret, statusCode);
+   printf("%s\n", ret);
 }
 
 int main(int argc, char *argv[])
@@ -66,12 +142,11 @@ int main(int argc, char *argv[])
           error("ERROR reading from socket");
           exit(1);
        }
-       if (n == 0) break;
 
        printf("%s\n", buffer);
 
        //send response to browser
-
+       parseHeader(buffer);
        close(newsockfd);
     }
          
