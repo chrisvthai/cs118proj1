@@ -56,7 +56,7 @@ void parseHeader(char* header)
    if (startIndex == endIndex) return;
    for (x = startIndex; x < endIndex; x++)
    {  
-      printf("%c\n", header[x]);
+      //printf("%c\n", header[x]);
       filename[fileIndex] = header[x];
       fileIndex++;
    }   
@@ -76,19 +76,19 @@ void parseHeader(char* header)
    memset(statusCode, 0, 50);
    while((entry = readdir(dir)) != NULL) //NULL if no more entries
    {
-      int s = strcmp(entry->d_name, filename);
-      printf("%s\n", entry->d_name);
-      printf("%s\n", filename);
-      printf("%d\n", s);
-      if (s == strlen(filename))
+      int s = strcasecmp(entry->d_name, filename);
+      //printf("%s\n", entry->d_name);
+      //printf("%s\n", filename);
+      //printf("%d\n", s);
+      if (s == 0)
       {
          strcpy(statusCode, " 200 OK\r\n");
          break;
-      }
-      else 
-      {
-         strcpy(statusCode, " 404 Not Found\r\n");
       }    
+   }
+   if (strlen(statusCode) == 0)
+   {
+      strcpy(statusCode, " 404 Not Found\r\n");
    }
    closedir(dir);
    strcat(ret, statusCode);
