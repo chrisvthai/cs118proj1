@@ -113,7 +113,7 @@ void parseHeader(char* header, int sockfd)
         fp = fopen(entry->d_name, "rb");
 
         fseek(fp, 0, SEEK_END);
-        long int size = ftell(fp) + 1;
+        long int size = ftell(fp);
         fseek(fp, 0, SEEK_SET);
 
         char *requested_file;
@@ -129,7 +129,7 @@ void parseHeader(char* header, int sockfd)
         //set up Content-Type header line
         char content_type[200];
         memset(content_type, 0, 200);
-        sprintf(content_type, "Content-Type: text/plain\r\nContent-Disposition: inline; filename='%s'\r\n", filename);     
+        sprintf(content_type, "Content-Type: text/plain\r\nX-Content-Type-Options: nosniff\r\n");     
 
         //find out how much memory is needed to store the entire response
         int extralen = strlen(ret) + strlen(content_len) + strlen("\r\n");
