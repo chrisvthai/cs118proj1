@@ -20,7 +20,7 @@ void error(char *msg)
     exit(1);
 }
 
-void parseHeader(char* header)
+void parseHeader(char* header, int sockfd)
 {
    char ret[2048]; //add more if necessary, up to 800,000,000
    int retIndex = 0;
@@ -83,15 +83,35 @@ void parseHeader(char* header)
       if (s == 0)
       {
          strcpy(statusCode, " 200 OK\r\n");
+	 strcat(ret, statusCode);
+
+	 //Found the file, attach message body
+	  FILE *fp;
+
+        fp = fopen(entry->d_name, "rb");
+
+        fseek(fp, 0, SEEK_END);
+        long int size = ftell(fp) + 1;
+        fseek(fp, 0, SEEK_SET);
+
+        printf("File size is: %d\n", size);
+
+        char *requested_file;
+        requested_file = (char *) malloc(size);
+
+        for (int i = 0; i < size; i++)
+                fread(requested_file, size, 1, fp);
+
+        printf("%s", requested_file);
          break;
       }    
    }
    if (strlen(statusCode) == 0)
    {
       strcpy(statusCode, " 404 Not Found\r\n");
+      strcat(ret, statusCode);
    }
    closedir(dir);
-   strcat(ret, statusCode);
    printf("%s\n", ret);
 }
 
@@ -146,7 +166,7 @@ int main(int argc, char *argv[])
        printf("%s\n", buffer);
 
        //send response to browser
-       parseHeader(buffer);
+       parseHeader(buffer, newsockfd);
        close(newsockfd);
     }
          
