@@ -22,23 +22,24 @@ void error(char *msg)
 
 void parseHeader(char* header, int sockfd)
 {
-   char ret[2048]; //add more if necessary, up to 800,000,000
+   // set up space for header line data
+   char ret[2048]; 
    int retIndex = 0;
    memset(ret, 0, 2048); 
 
    int x;
    int startIndex = -1;
    int endIndex = -1;
-   char filename[2048];
    int fileIndex = 0;
+   char filename[2048];
    memset(filename, 0, 2048);
    
    char extension[10];
+   int extend = -1;
    int extIndex = 0;
    memset(extension, 0, 10);
-   int extend = -1;
 
-   //get request line
+   // get request line
    int endOfRequestLine;
    for (x = 0; x < strlen(header); x++)
    {
@@ -52,20 +53,16 @@ void parseHeader(char* header, int sockfd)
       else if (header[x] == '/') endIndex = x - 5; 
    }
 
-   //store file extension
-   //printf("%d\n%d\n", extend, endIndex);
+   // store file extension
    for (x = extend; x < endIndex; x++)
    { 
       extension[extIndex] = header[x];
       extIndex++;  
    }
 
-   //printf("%s\n", extension);
-
    //store file name
    for (x = startIndex; x < endIndex; x++)
    {  
-      //printf("%c\n", header[x]);
       if (header[x] == '%')
       {
          if (header[x + 1] == '2')
@@ -84,14 +81,14 @@ void parseHeader(char* header, int sockfd)
       fileIndex++;
    }   
     
-   //get HTTP/1.1
+   // get HTTP/#.#
    for (x = endIndex + 1; x < endOfRequestLine; x++)
    {   
       ret[retIndex] = header[x];
       retIndex++;
    } 
    
-   //look for the file 
+   // look for the file 
    DIR* dir;
    struct dirent* entry;
    dir = opendir(".");
@@ -107,7 +104,7 @@ void parseHeader(char* header, int sockfd)
         strcpy(statusCode, " 200 OK\r\n");
         strcat(ret, statusCode);
 
-        //Found the file, attach message body
+        // Found the file, attach message body
         FILE *fp;
 
         fp = fopen(entry->d_name, "rb");
@@ -121,32 +118,44 @@ void parseHeader(char* header, int sockfd)
 
         fread(requested_file, size, 1, fp);
 
-        //set up Content-Length header line
+        // set up Content-Length header line
         char content_len[200];
         memset(content_len, 0, 200);
         sprintf(content_len, "Content-Length: %ld\r\n", size);
             
-        //set up Content-Type header line
+        // set up Content-Type header line
         char content_type[200];
         memset(content_type, 0, 200);
-        sprintf(content_type, "Content-Type: text/plain\r\nX-Content-Type-Options: nosniff\r\n");     
-
-        //find out how much memory is needed to store the entire response
-        int extralen = strlen(ret) + strlen(content_len) + strlen("\r\n");
-        if (strcasecmp(extension, "htm") == 0 || strcasecmp(extension, "txt") == 0)
+        sprintf(content_type, "Content-Type: ");     
+        if (strcasecmp(extension, "txt") == 0)
         {
-           extralen = extralen + strlen(content_type);
+           strcat(content_type, "text/plain\r\n");
         }
+        else if (strcasecmp(extension, "jpeg") == 0 || strcasecmp(extension, "jpg") == 0)
+        {
+           strcat(content_type, "image/jpeg\r\n");
+        }
+        else if (strcasecmp(extension, "gif") == 0)
+        {
+           strcat(content_type, "image/gif\r\n");
+        }
+        else if (strcasecmp(extension, "htm") == 0 || strcasecmp(extension, "html") == 0 )
+        {
+           strcat(content_type, "text/html\r\n");
+        }
+        else 
+        {
+            strcat(content_type, "application/octet-stream\r\n");
+        }
+    
+        int extralen = strlen(ret) + strlen(content_len) + strlen("\r\n") + strlen(content_type);
         total_size = extralen + size;
         final_output = (char *) malloc(total_size);
 
-        //copy everything to the newly allocated memory
+        // copy everything to the newly allocated memory
         strcpy(final_output, ret);
         strcat(final_output, content_len);
-        if (strcasecmp(extension, "htm") == 0 || strcasecmp(extension, "txt") == 0)
-        {
-           strcat(final_output, content_type);
-        }
+        strcat(final_output, content_type);
         strcat(final_output, "\r\n");
 
         long int x;
@@ -165,7 +174,7 @@ void parseHeader(char* header, int sockfd)
       final_output = (char *) malloc(total_size);
       strcpy(final_output, ret);
    }
-   //printf("%s\n", final_output);
+   // printf("%s\n", final_output);
    write(sockfd, final_output, total_size);
    free(final_output);
    closedir(dir);
