@@ -36,6 +36,7 @@ void parseHeader(char* header, int sockfd)
    char extension[10];
    int extIndex = 0;
    memset(extension, 0, 10);
+   int extend = -1;
 
    //get request line
    int endOfRequestLine;
@@ -47,17 +48,39 @@ void parseHeader(char* header, int sockfd)
          break;
       }
       if (header[x] == '/' && startIndex == -1) startIndex = x + 1;
+      if (header[x] == '.' && extend == -1) extend = x + 1;
       else if (header[x] == '/') endIndex = x - 5; 
    }
 
-   //fprintf(stdout, "%d\n", startIndex);
+   //store file extension
+   //printf("%d\n%d\n", extend, endIndex);
+   for (x = extend; x < endIndex; x++)
+   { 
+      extension[extIndex] = header[x];
+      extIndex++;  
+   }
+
+   //printf("%s\n", extension);
 
    //store file name
-   if (startIndex == endIndex) return;
    for (x = startIndex; x < endIndex; x++)
    {  
       //printf("%c\n", header[x]);
-      filename[fileIndex] = header[x];
+      if (header[x] == '%')
+      {
+         if (header[x + 1] == '2')
+         {
+            if (header[x + 2] == '0')
+            {
+                x = x + 2;
+                filename[fileIndex] = ' ';  
+            }
+         }
+      }
+      else 
+      {
+         filename[fileIndex] = header[x];
+      }
       fileIndex++;
    }   
     
@@ -79,15 +102,10 @@ void parseHeader(char* header, int sockfd)
    while((entry = readdir(dir)) != NULL) //NULL if no more entries
    {
       int s = strcasecmp(entry->d_name, filename);
-      //printf("%s\n", entry->d_name);
-      //printf("%s\n", filename);
-      //printf("%d\n", s);
       if (s == 0)
       {
         strcpy(statusCode, " 200 OK\r\n");
         strcat(ret, statusCode);
-
-        //printf("%s\n", ret);
 
         //Found the file, attach message body
         FILE *fp;
@@ -98,41 +116,59 @@ void parseHeader(char* header, int sockfd)
         long int size = ftell(fp) + 1;
         fseek(fp, 0, SEEK_SET);
 
-        //printf("File size is: %d\n", size);
-
         char *requested_file;
         requested_file = (char *) malloc(size);
 
-        for (int i = 0; i < size; i++)
-                fread(requested_file, size, 1, fp);
+        fread(requested_file, size, 1, fp);
 
-        printf("%s\n", requested_file);
-
+        //set up Content-Length header line
         char content_len[200];
         memset(content_len, 0, 200);
-        sprintf(content_len, "Content-Length: %ld\r\n\r\n", size);
-        total_size = strlen(ret) + size + strlen(content_len);
+        sprintf(content_len, "Content-Length: %ld\r\n", size);
+            
+        //set up Content-Type header line
+        char content_type[200];
+        memset(content_type, 0, 200);
+        sprintf(content_type, "Content-Type: text/plain\r\nContent-Disposition: inline; filename='%s'\r\n", filename);     
+
+        //find out how much memory is needed to store the entire response
+        int extralen = strlen(ret) + strlen(content_len) + strlen("\r\n");
+        if (strcasecmp(extension, "htm") == 0 || strcasecmp(extension, "txt") == 0)
+        {
+           extralen = extralen + strlen(content_type);
+        }
+        total_size = extralen + size;
         final_output = (char *) malloc(total_size);
+
+        //copy everything to the newly allocated memory
         strcpy(final_output, ret);
-        //printf("%s\n", final_output);
         strcat(final_output, content_len);
-        //printf("%s\n", final_output);
-        strncat(final_output, requested_file, size);    
+        if (strcasecmp(extension, "htm") == 0 || strcasecmp(extension, "txt") == 0)
+        {
+           strcat(final_output, content_type);
+        }
+        strcat(final_output, "\r\n");
+
+        long int x;
+        for (x = extralen; x < total_size; x++)
+        {
+           final_output[x] = requested_file[x - extralen];
+        }
       }    
    }
    if (strlen(statusCode) == 0)
    {
-      strcpy(statusCode, " 404 Not Found\r\n\r\n");
+      strcpy(statusCode, " 404 Not Found\r\n");
       strcat(ret, statusCode);
-      total_size = strlen(ret);
+      char* notfound = "Content-Length: 469\r\n\r\n<!DOCTYPE HTML PUBLIC '-//W3C//DTD HTML 4.01//EN' 'http://www.w3.org/TR/html4/strict.dtd'><html><head><meta http-equiv='Content-Type' content='text/html;charset=utf-8'><title>Error response</title></head><body><h1>Error response</h1><p>Error code: 404</p><p>Message: File not found.</p><p>Error code explanation: HTTPStatus.NOT_FOUND - Nothing matches the given URI.</p></body></html>";
+      total_size = strlen(ret) + strlen(notfound);
       final_output = (char *) malloc(total_size);
       strcpy(final_output, ret);
    }
-   closedir(dir);
-
+   //printf("%s\n", final_output);
    write(sockfd, final_output, total_size);
-   printf("%s\n", final_output);
    free(final_output);
+   closedir(dir);
 }
 
 int main(int argc, char *argv[])
