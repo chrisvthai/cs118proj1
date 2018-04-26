@@ -65,9 +65,9 @@ void parseHeader(char* header, int sockfd)
    {  
       if (header[x] == '%')
       {
-         if (header[x + 1] == '2')
+         if (strleng(header) != x + 1 && header[x + 1] == '2')
          {
-            if (header[x + 2] == '0')
+            if (strleng(header) != x + 2 && header[x + 2] == '0')
             {
                 x = x + 2;
                 filename[fileIndex] = ' ';  
@@ -169,12 +169,13 @@ void parseHeader(char* header, int sockfd)
    {
       strcpy(statusCode, " 404 Not Found\r\n");
       strcat(ret, statusCode);
-      char* notfound = "Content-Length: 469\r\n\r\n<!DOCTYPE HTML PUBLIC '-//W3C//DTD HTML 4.01//EN' 'http://www.w3.org/TR/html4/strict.dtd'><html><head><meta http-equiv='Content-Type' content='text/html;charset=utf-8'><title>Error response</title></head><body><h1>Error response</h1><p>Error code: 404</p><p>Message: File not found.</p><p>Error code explanation: HTTPStatus.NOT_FOUND - Nothing matches the given URI.</p></body></html>";
+      char* notfound = "Content-Length: 309\r\n\r\n<!DOCTYPE HTML><html><head><meta http-equiv='Content-Type' content='text/html;charset=utf-8'><title>Error response</title></head><body><h1>Error response</h1><p>Error code: 404</p><p>Message: File not found.</p><p>Error code explanation: HTTPStatus.NOT_FOUND - Nothing matches the given URI.</p></body></html>";
       total_size = strlen(ret) + strlen(notfound);
       final_output = (char *) malloc(total_size);
       strcpy(final_output, ret);
+      strcat(final_output, notfound);
    }
-   // printf("%s\n", final_output);
+   printf("%s\n", final_output);
    write(sockfd, final_output, total_size);
    free(final_output);
    closedir(dir);
