@@ -116,7 +116,12 @@ void parseHeader(char* header, int sockfd)
         char *requested_file;
         requested_file = (char *) malloc(size);
 
-        fread(requested_file, size, 1, fp);
+        int j = fread(requested_file, size, 1, fp);
+        if (j < 0)
+        {
+           error("ERROR reading from file");
+           exit(1);
+        }
 
         // set up Content-Length header line
         char content_len[200];
@@ -145,7 +150,7 @@ void parseHeader(char* header, int sockfd)
         }
         else 
         {
-            strcat(content_type, "application/octet-stream\r\n");
+           strcat(content_type, "application/octet-stream\r\n");
         }
     
         int extralen = strlen(ret) + strlen(content_len) + strlen("\r\n") + strlen(content_type);
@@ -180,7 +185,12 @@ void parseHeader(char* header, int sockfd)
    }
 
    // send the HTTP response to the client
-   write(sockfd, final_output, total_size);
+   int j = write(sockfd, final_output, total_size);
+   if (j < 0)
+   {
+      error("ERROR writing HTTP response");
+      exit(1);
+   }
    free(final_output);
    closedir(dir);
 }
