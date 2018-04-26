@@ -121,7 +121,7 @@ void parseHeader(char* header, int sockfd)
         // set up Content-Length header line
         char content_len[200];
         memset(content_len, 0, 200);
-        sprintf(content_len, "Content-Length: %ld\r\n", size);
+        sprintf(content_len, "Content-Length: %ld\r\nX-Content-Type-Options: nosniff\r\n", size);
             
         // set up Content-Type header line
         char content_type[200];
