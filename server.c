@@ -65,9 +65,9 @@ void parseHeader(char* header, int sockfd)
    {  
       if (header[x] == '%')
       {
-         if (strleng(header) != x + 1 && header[x + 1] == '2')
+         if (strlen(header) != x + 1 && header[x + 1] == '2')
          {
-            if (strleng(header) != x + 2 && header[x + 2] == '0')
+            if (strlen(header) != x + 2 && header[x + 2] == '0')
             {
                 x = x + 2;
                 filename[fileIndex] = ' ';  
