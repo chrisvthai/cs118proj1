@@ -40,6 +40,7 @@ int main(int argc, char *argv[])
     serv_addr.sin_family = AF_INET; //initialize server's address
     bcopy((char *)server->h_addr, (char *) &serv_addr.sin_addr.s_addr, server->h_length);
     serv_addr.sin_port = htons(portno);
+    socklen_t serv_addr_len = sizeof(serv_addr);
 
     /*
     if (connect(sockfd,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) //establish a connection to the server
@@ -87,8 +88,8 @@ int main(int argc, char *argv[])
     while (1) {
         // retrieve the packet
         memset(buf, 0, PACKET_SIZE);
-        int n = recvfrom(sockfd, buf, PACKET_SIZE, 0, (struct sockaddr *) &serv_addr, sizeof(serv_addr));
-        
+        int n = recvfrom(sockfd, buf, PACKET_SIZE, 0, (struct sockaddr *) &serv_addr, &serv_addr_len);
+
         Packet* received = (Packet*) buf;
 
         // send the ACK and filename
@@ -98,9 +99,9 @@ int main(int argc, char *argv[])
             Packet response = {
                 .seq_num = received->seq_num + received->payload_len+1,
                 .payload_len = sizeof(file),
-                .type = ACK,
-                .payload = file
+                .type = ACK
             };
+            strcpy(response.payload, file);
 
             write_socket(&response, sockfd, &serv_addr, sizeof(serv_addr));
             printf("Sending packet %d ACK", response.seq_num);
