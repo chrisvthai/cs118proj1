@@ -25,7 +25,7 @@ int main(int argc, char *argv[])
 
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);  // create socket
     if (sockfd < 0)
-        error("ERROR opening socket");
+        perror("ERROR opening socket");
     memset((char *) &serv_addr, 0, sizeof(serv_addr));  // reset memory
 
     // fill in address info
@@ -35,38 +35,38 @@ int main(int argc, char *argv[])
     serv_addr.sin_port = htons(portno);
 
     if (bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0)
-        error("ERROR on binding");
+        perror("ERROR on binding");
 
     listen(sockfd, 5);  // 5 simultaneous connection at most
 
     // accept connections 
-    // newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
+    newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
 
-    // if (newsockfd < 0)
-    //  error("ERROR on accept");
+    if (newsockfd < 0)
+      perror("ERROR on accept");
 
-    // int n;
-    // char buffer[256];
+    int n;
+    char buffer[256];
 
-    // memset(buffer, 0, 256);  // reset memory
+     memset(buffer, 0, 256);  // reset memory
 
-    // //read client's message
-    // n = read(newsockfd, buffer, 255);
-    // if (n < 0) error("ERROR reading from socket");
-    // printf("Here is the message: %s\n", buffer);
+     //read client's message
+    n = read(newsockfd, buffer, 255);
+    if (n < 0) perror("ERROR reading from socket");
+    printf("Here is the message: %s\n", buffer);
 
-    // //reply to client
-    // n = write(newsockfd, "I got your message", 18);
-    // if (n < 0) error("ERROR writing to socket");
+    //reply to client
+    n = write(newsockfd, "I got your message", 18);
+    if (n < 0) perror("ERROR writing to socket");
 
-    // close(newsockfd);  // close connection
-    // close(sockfd);
+    close(newsockfd);  // close connection
+    close(sockfd);
 
     // assumption that the requested file is in the current directory
 
-    while(1) {
+    //while(1) {
 
-    }
+    //}
 
     return 0;
 }
