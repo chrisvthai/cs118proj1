@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
+#include "helper.h"
 
 int main(int argc, char *argv[])
 {
@@ -40,27 +41,48 @@ int main(int argc, char *argv[])
     bcopy((char *)server->h_addr, (char *) &serv_addr.sin_addr.s_addr, server->h_length);
     serv_addr.sin_port = htons(portno);
 
-    // if (connect(sockfd,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) //establish a connection to the server
-    //     error("ERROR connecting");
+    /*
+    if (connect(sockfd,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) //establish a connection to the server
+        error("ERROR connecting");
 
-    // printf("Please enter the message: ");
-    // memset(buffer, 0, 256);
-    // fgets(buffer, 255, stdin);  // read message
+    printf("Please enter the message: ");
+    memset(buffer, 0, 256);
+    fgets(buffer, 255, stdin);  // read message
 
-    // n = write(sockfd, buffer, strlen(buffer));  // write to the socket
-    // if (n < 0)
-    //      error("ERROR writing to socket");
+    n = write(sockfd, buffer, strlen(buffer));  // write to the socket
+    if (n < 0)
+         error("ERROR writing to socket");
 
-    // memset(buffer, 0, 256);
-    // n = read(sockfd, buffer, 255);  // read from the socket
-    // if (n < 0)
-    //      error("ERROR reading from socket");
-    // printf("%s\n", buffer);  // print server's response
+    memset(buffer, 0, 256);
+    n = read(sockfd, buffer, 255);  // read from the socket
+    if (n < 0)
+         error("ERROR reading from socket");
+    printf("%s\n", buffer);  // print server's response
 
-    // close(sockfd);  // close socket
+    close(sockfd);  // close socket
+    */
 
     // retrieve filename
     char* file = argv[3];
+
+    // setup file to receive data
+    FILE* received_bytes;
+    received_bytes = fopen("received_bytes", "w");
+    if (received_bytes == NULL) {
+        error("ERROR, unable to create a file to write to.");
+    }
+
+    // send SYN to begin establishing connection to server
+    Packet request = {
+        .seq_num = 0,
+        .type = SYN,
+        .payload = file
+    };
+    write_socket(&request, sockfd, &serv_addr, sizeof(serv_addr));
+    printf("Sent SYN packet.\n");
+
+    // close file at the end
+    fclose(received_bytes);
 
     return 0;
 }
