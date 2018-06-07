@@ -1,22 +1,55 @@
 #include "helper.h"
 
 // prints error message and exits form program with error
-void error(char *msg)
-{
+void error(char *msg) {
     perror(msg);
     exit(1);
 }
 
-// write the packet to the socket to be sent over UDP
-void write_socket(Packet* packet, int sockfd, const struct sockaddr_in* sock_addr, socklen_t sock_len) {
-    char buf[PACKET_SIZE];
-    memset(buf, 0, PACKET_SIZE);
-
-    char* my_packet = (char*) packet;
-    strcpy(buf, my_packet);
-
-    ssize_t n = sendto(sockfd, buf, PACKET_SIZE, 0, (struct sockaddr*)sock_addr, sock_len);
+// send a packet
+void send_packet(int sockfd, struct sockaddr *src_addr, socklen_t addrlen, Packet to_send) {
+    Bytes b_send = {
+        .my_packet = to_send
+    };
+    ssize_t n = sendto(sockfd, b_send.bytes, PACKET_SIZE, 0, src_addr, addrlen);
     if (n < 0) {
         error("ERROR, problem with sending data to socket.\n");
     }
+}
+
+// retrieve a packet
+Packet recv_packet(int sockfd, struct sockaddr *src_addr, socklen_t addrlen) {
+    Bytes to_get;
+    ssize_t n = recvfrom(sockfd, to_get.bytes, PACKET_SIZE, 0, src_addr, &addrlen);
+    if (n < 0) {
+        error("ERROR, couldn't retrieve packet");
+    }
+    Packet new_packet = to_get.my_packet;
+
+    return new_packet;
+}
+
+// returns the type of response
+char* packet_type(enum Type p_type) {
+    char* temp;
+    switch (p_type) {
+        case(SYN):
+            temp = " SYN";
+            break;
+        case(SYN_ACK):
+            temp = " SYN ACK";
+            break;
+        case(ACK):
+            temp = " ACK";
+            break;
+        case(FIN):
+            temp = " FIN";
+            break;
+        case(FIN_ACK):
+            temp = " FIN ACK";
+            break;
+        default:
+            temp = "";
+    }
+    return temp;
 }

@@ -68,7 +68,7 @@ int main(int argc, char *argv[])
 
     // setup file to receive data
     FILE* received_bytes;
-    received_bytes = fopen("received.data", "w");
+    received_bytes = fopen("received.data", "a");
     if (received_bytes == NULL) {
         error("ERROR, unable to create a file to write to.");
     }
@@ -76,36 +76,60 @@ int main(int argc, char *argv[])
     // send SYN to begin establishing connection to server
     Packet request = {
         .seq_num = 0,
+        .ack_num = 0,
         .payload_len = 0,
-        .type = SYN,
-        .payload = 0
+        .type = SYN
     };
-    write_socket(&request, sockfd, &serv_addr, sizeof(serv_addr));
+
+    send_packet(sockfd, (struct sockaddr*)&serv_addr, serv_addr_len, request);
     printf("Sending packet %d SYN\n", request.seq_num);
 
     // receive packets from the server
-    char buf[PACKET_SIZE];
     while (1) {
         // retrieve the packet
-        memset(buf, 0, PACKET_SIZE);
-        int n = recvfrom(sockfd, buf, PACKET_SIZE, 0, (struct sockaddr *) &serv_addr, &serv_addr_len);
+        Packet received = recv_packet(sockfd, (struct sockaddr*) &serv_addr, serv_addr_len);
 
-        Packet* received = (Packet*) buf;
+        // print receiving message
+        char* type = packet_type(received.type); 
+        printf("Receiving packet %d%s\n", received.ack_num, type);
 
-        // send the ACK and filename
-        if (received->type == SYN_ACK) {
-            printf("Receiving packet %d SYN ACK\n", received->seq_num);
+        // save contents of payload to file
+        fwrite(received.payload, received.payload_len, 1, received_bytes);
 
-            Packet response = {
-                .seq_num = received->seq_num + received->payload_len+1,
-                .payload_len = sizeof(file),
-                .type = ACK
-            };
-            strcpy(response.payload, file);
+        Packet* response = malloc(sizeof(Packet));
 
-            write_socket(&response, sockfd, &serv_addr, sizeof(serv_addr));
-            printf("Sending packet %d ACK", response.seq_num);
+        // create the response packet
+        if (received.type == SYN_ACK) {
+            // finish 3-way handshake
+            response->seq_num = received.seq_num+1;
+            response->ack_num = received.ack_num;
+            response->payload_len = sizeof(file);
+            response->type = ACK;
+            strcpy(response->payload, file);
+
+            printf("seq: %d\nack: %d\n", response->seq_num, response->ack_num);
+        } else if (received.type == FIN) {
+            // accept connection termination
+            response->seq_num = received.ack_num;
+            response->ack_num = received.seq_num+1;
+            response->payload_len = 0;
+            response->type = FIN_ACK;
+        } else if (received.type == ACK) {
+            // terminate the connection
+            break;
+        } else {
+            // send packets normally
+            response->seq_num = received.ack_num;
+            response->ack_num = received.seq_num + received.payload_len;
+            response->payload_len = 0;
+            response->type = NONE;
         }
+
+        // send packet and print sending message
+        send_packet(sockfd, (struct sockaddr*)&serv_addr, serv_addr_len, *response);
+        type = packet_type(response->type); 
+        printf("Sending packet %d%s\n", response->seq_num, type); 
+        free(response);
     }
 
     // close file at the end
