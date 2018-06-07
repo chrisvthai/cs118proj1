@@ -67,7 +67,7 @@ int main(int argc, char *argv[])
 
     // setup file to receive data
     FILE* received_bytes;
-    received_bytes = fopen("received_bytes", "w");
+    received_bytes = fopen("received.data", "w");
     if (received_bytes == NULL) {
         error("ERROR, unable to create a file to write to.");
     }
@@ -75,11 +75,37 @@ int main(int argc, char *argv[])
     // send SYN to begin establishing connection to server
     Packet request = {
         .seq_num = 0,
+        .payload_len = 0,
         .type = SYN,
-        .payload = file
+        .payload = 0
     };
     write_socket(&request, sockfd, &serv_addr, sizeof(serv_addr));
-    printf("Sent SYN packet.\n");
+    printf("Sending packet %d SYN\n", request.seq_num);
+
+    // receive packets from the server
+    char buf[PACKET_SIZE];
+    while (1) {
+        // retrieve the packet
+        memset(buf, 0, PACKET_SIZE);
+        int n = recvfrom(sockfd, buf, PACKET_SIZE, 0, (struct sockaddr *) &serv_addr, sizeof(serv_addr));
+        
+        Packet* received = (Packet*) buf;
+
+        // send the ACK and filename
+        if (received->type == SYN_ACK) {
+            printf("Receiving packet %d SYN ACK\n", received->seq_num);
+
+            Packet response = {
+                .seq_num = received->seq_num + received->payload_len+1,
+                .payload_len = sizeof(file),
+                .type = ACK,
+                .payload = file
+            };
+
+            write_socket(&response, sockfd, &serv_addr, sizeof(serv_addr));
+            printf("Sending packet %d ACK", response.seq_num);
+        }
+    }
 
     // close file at the end
     fclose(received_bytes);

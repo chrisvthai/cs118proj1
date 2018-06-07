@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>  /* signal name macros, and the kill() prototype */
+#include "helper.h"
 
 int main(int argc, char *argv[])
 {
@@ -64,9 +65,91 @@ int main(int argc, char *argv[])
 
     // assumption that the requested file is in the current directory
 
-    while(1) {
+    char buf[PACKET_SIZE];
+    char* file = 0;
+    int num_packets = 0;
+    FILE* open_this;
+    char *file_buffer;
 
-    }
+    // array of packets for easy access
+    Packet** packet_list;
+
+    while(1) {
+        // retrieve the packet
+        memset(buf, 0, PACKET_SIZE);
+        int n = recvfrom(sockfd, buf, PACKET_SIZE, 0, (struct sockaddr *) &cli_addr, sizeof(cli_addr));
+        if (n == NULL) {
+            error ("ERROR, couldn't retrieve the packet.\n");
+        }
+        
+        Packet* received = (Packet*) buf;
+
+        // send the SYN ACK
+        Packet response;
+        if (received->type == SYN) {
+            printf("Receiving packet %d SYN\n", received->seq_num);
+            Packet response = {
+                .seq_num = received->seq_num + received->payload_len+1,
+                .payload_len = 0,
+                .type = SYN_ACK,
+                .payload = 0
+            };
+            write_socket(&response, sockfd, &serv_addr, sizeof(serv_addr));
+            printf("Sending packet %d SYN ACK", response.seq_num);
+            continue;
+        } 
+        // If the received packet is an ACK, then split the file into packets for transfer
+        else if (received->type == ACK) {
+            printf("Receiving packet %d ACK\n", received->seq_num);
+
+            char* file;
+            strncpy(file, &received->payload, received->payload_len);
+            open_this = fopen(file, "r");
+
+            //Get file length and read file into buffer
+            fseek(open_this, 0, SEEK_END);
+            long int size = ftell(open_this);
+            fseek(open_this, 0, SEEK_SET);
+            file_buffer = (char *) malloc(size);
+            if (fread(file_buffer, size, 1, open_this) < 0) {
+                perror("Error reading from file");
+                exit(1);
+            }
+            fclose(open_this);
+
+            //Determine how many packets are needed to transmit the entire file
+            num_packets = (int) (size/PAYLOAD_SIZE + 1);
+
+            //Incrementally copy some of the buffer into a packet, then add the packet to a list of packets to be sent
+            FILE* write_to = fopen("output.data", "a");
+            char payload[PAYLOAD_SIZE];
+            int offset = 0;
+            packet_list = malloc(ceil((double)size/PAYLOAD_SIZE) * sizeof(Packet*));
+            
+            for (int i = 0; i < num_packets; i++) {
+                memcpy(payload, file_buffer+offset, PAYLOAD_SIZE);
+                offset += PAYLOAD_SIZE;
+                fwrite(payload, PAYLOAD_SIZE, 1, write_to);
+
+                // for the last packet, calculate the payload size manually
+                int payload_len = PAYLOAD_SIZE;
+                if (i == num_packets-1) {
+                    payload_len = size - (PAYLOAD_SIZE * (num_packets-1));
+                }
+
+                Packet temp = {
+                    .seq_num = 0,
+                    .payload_len = payload_len,
+                    .type = NONE,
+                    .payload = payload
+                };
+
+                packet_list[i] = &temp;
+            }
+
+            fclose(write_to);
+            free(buf);
+        }   
 
     return 0;
 }
