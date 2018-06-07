@@ -74,12 +74,7 @@ int main(int argc, char *argv[])
     }
 
     // send SYN to begin establishing connection to server
-    Packet request = {
-        .seq_num = 0,
-        .ack_num = 0,
-        .payload_len = 0,
-        .type = SYN
-    };
+    Packet request = packet_gen(0, 0, 0, SYN, NULL);
 
     send_packet(sockfd, (struct sockaddr*)&serv_addr, serv_addr_len, request);
     printf("Sending packet %d SYN\n", request.seq_num);
@@ -96,40 +91,27 @@ int main(int argc, char *argv[])
         // save contents of payload to file
         fwrite(received.payload, received.payload_len, 1, received_bytes);
 
-        Packet* response = malloc(sizeof(Packet));
+        Packet response;
 
         // create the response packet
         if (received.type == SYN_ACK) {
             // finish 3-way handshake
-            response->seq_num = received.seq_num+1;
-            response->ack_num = received.ack_num;
-            response->payload_len = sizeof(file);
-            response->type = ACK;
-            strcpy(response->payload, file);
-
-            printf("seq: %d\nack: %d\n", response->seq_num, response->ack_num);
+            response = packet_gen(1, 1, sizeof(file), ACK, file);
         } else if (received.type == FIN) {
             // accept connection termination
-            response->seq_num = received.ack_num;
-            response->ack_num = received.seq_num+1;
-            response->payload_len = 0;
-            response->type = FIN_ACK;
+            response = packet_gen(received.ack_num, received.seq_num + received.payload_len+1, 0, FIN_ACK, NULL);
         } else if (received.type == ACK) {
             // terminate the connection
             break;
         } else {
             // send packets normally
-            response->seq_num = received.ack_num;
-            response->ack_num = received.seq_num + received.payload_len;
-            response->payload_len = 0;
-            response->type = NONE;
+            response = packet_gen(received.ack_num, received.seq_num + received.payload_len, 0, NONE, NULL);
         }
 
         // send packet and print sending message
-        send_packet(sockfd, (struct sockaddr*)&serv_addr, serv_addr_len, *response);
-        type = packet_type(response->type); 
-        printf("Sending packet %d%s\n", response->seq_num, type); 
-        free(response);
+        send_packet(sockfd, (struct sockaddr*)&serv_addr, serv_addr_len, response);
+        type = packet_type(response.type); 
+        printf("Sending packet %d%s\n", response.seq_num, type); 
     }
 
     // close file at the end

@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <string.h>
 
 #define PACKET_SIZE 1024 // max packet size
 #define PAYLOAD_SIZE (PACKET_SIZE - 3 * sizeof(int) - sizeof(enum Type)) // max packet size that can fit in the payload
@@ -32,6 +33,6 @@ void error(char *msg);
 void send_packet(int sockfd, struct sockaddr *src_addr, socklen_t addrlen, Packet to_send);
 Packet recv_packet(int sockfd, struct sockaddr *src_addr, socklen_t addrlen);
 char* packet_type(enum Type type);
-Packet packet_gen()
+Packet packet_gen(int seq, int ack, int p_len, enum Type t, const char* data);
 
 #endif // HELPER_H

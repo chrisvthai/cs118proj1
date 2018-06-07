@@ -37,19 +37,31 @@ char* packet_type(enum Type p_type) {
             temp = " SYN";
             break;
         case(SYN_ACK):
-            temp = " SYN ACK";
-            break;
-        case(ACK):
-            temp = " ACK";
+            temp = " SYN";
             break;
         case(FIN):
             temp = " FIN";
             break;
         case(FIN_ACK):
-            temp = " FIN ACK";
+            temp = " FIN";
             break;
         default:
             temp = "";
     }
+    return temp;
+}
+
+// Creates a packet
+Packet packet_gen(int seq, int ack, int p_len, enum Type t, const char* data) {
+    Packet temp = {
+        .seq_num = seq,
+        .ack_num = ack, 
+        .payload_len = p_len,
+        .type = t
+    };
+    if (data != NULL) {
+        strncpy(temp.payload, data, p_len);
+    }
+
     return temp;
 }

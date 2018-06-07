@@ -81,14 +81,11 @@ int main(int argc, char *argv[])
         char* type = packet_type(received.type); 
         printf("Receiving packet %d%s\n", received.ack_num, type);
 
-        Packet* response = malloc(sizeof(Packet));
+        Packet response;
 
         // create the SYN ACK
         if (received.type == SYN) {
-            response->seq_num = 0;
-            response->ack_num = received.seq_num+1;
-            response->payload_len = 0;
-            response->type = SYN_ACK;
+            response = packet_gen(0, 1, 0, SYN_ACK, NULL);
         } else if (received.type == ACK) {
             // If the received packet is an ACK, then split the file into packets for transfer
             char file[PAYLOAD_SIZE];
@@ -127,7 +124,8 @@ int main(int argc, char *argv[])
                 }
 
                 Packet* new_packet = malloc(sizeof(Packet));
-                new_packet->seq_num = offset % PACKET_SIZE;
+                new_packet->seq_num = -1;
+                new_packet->ack_num = -1;
                 new_packet->payload_len = payload_len;
                 new_packet->type = NONE;
                 strcpy(new_packet->payload, payload);
@@ -138,37 +136,29 @@ int main(int argc, char *argv[])
 
             free(file_buffer);
 
-            response = packet_list[curr_packet];
-            response->seq_num = received.ack_num;
-            response->ack_num = received.seq_num + received.payload_len;
+            response = *packet_list[curr_packet];
+            response.seq_num = received.ack_num;
+            response.ack_num = received.seq_num + received.payload_len;
             curr_packet++;
         } else if (received.type == FIN_ACK) {
             // send ACK if FIN ACK is received
-            response->seq_num = received.seq_num+1;
-            response->ack_num = received.ack_num;
-            response->payload_len = 0;
-            response->type = ACK;
-
+            response = packet_gen(received.ack_num, received.seq_num + received.payload_len+1, 0, ACK, NULL);
             fin_flag = 0;
         } else if (num_packets == curr_packet) {
             // send FIN if there are no more data packets to send
-            response->seq_num = received.ack_num;
-            response->ack_num = received.seq_num + received.payload_len;
-            response->payload_len = 0;
-            response->type = FIN;
+            response = packet_gen(received.ack_num, received.seq_num + received.payload_len, 0, FIN, NULL);
         } else {
             // send the file chunks
-            response = packet_list[curr_packet];
-            response->seq_num = received.ack_num;
-            response->ack_num = received.seq_num + received.payload_len;
+            response = *packet_list[curr_packet];
+            response.seq_num = received.ack_num;
+            response.ack_num = received.seq_num + received.payload_len;
             curr_packet++;
         }
 
         // send packet and print sending message
-        send_packet(sockfd, (struct sockaddr*)&serv_addr, serv_addr_len, *response);
-        type = packet_type(response->type); 
-        printf("Sending packet %d%s\n", response->seq_num, type); 
-        free(response);
+        send_packet(sockfd, (struct sockaddr*)&serv_addr, serv_addr_len, response);
+        type = packet_type(response.type); 
+        printf("Sending packet %d%s\n", response.seq_num, type); 
     }
 
     free(packet_list);
