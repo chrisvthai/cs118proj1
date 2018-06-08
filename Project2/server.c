@@ -77,20 +77,55 @@ int main(int argc, char *argv[])
     // array of packets for easy access
     Packet** packet_list = 0;
     int num_packets = 0;
-    int curr_packet = 0;
+    //int curr_packet = 0;
     int fin_flag = 1;
     long int size = -1; // size of file
 
+    //Window and timeout management
+    int sent_packets = 0;
+    int start_wnd = 0;
+    int wnd_size = 4; //For sweeping through the window
+    int resend_flag = 0;
+    int sending_data = 0; //1 if it's transferring the file rn
+    fd_set rfds;
+    struct timeval timeout;
+    int timed_out;
+
+    timeout.tv_sec = 0;
+    timeout.tv_sec = 500000;
+
     while(fin_flag) {
         // retrieve the packet
+
+        //TODO: Should there be a select call here to implement the timeout??
+        //Should we then have another conditional branch that'll handle it?
         Bytes to_get;
+
+        //Timeout check
+        FD_ZERO(&rfds);
+        FD_SET(sockfd, &rfds);
+
+        timed_out = select(sockfd+1, &rfds, NULL, NULL, &timeout);
+        if (timed_out < 1 && sending_data) {
+            //Insert timeout code
+            for (int i = start_wnd; i < start_wnd + wnd_size && k < num_packets; i++) {
+               
+                response = *packet_list[i];
+                packet_list[i]->sent = 1;
+                response.seq_num = received.ack_num;
+                response.ack_num = received.seq_num + received.payload_len;
+                
+                send_packet(sockfd, (struct sockaddr*)&cli_addr, cli_addr_len, response);
+                type = packet_type(response.type);
+                
+                printf("Sending packet %d%s Retransmission\n", response.seq_num, type);     
+            }
+            continue;
+        }
+
+        //If we didn't timeout, receive the ACK as normal
         ssize_t n = recvfrom(sockfd, to_get.bytes, PACKET_SIZE, 0, (struct sockaddr*) &cli_addr, &cli_addr_len);
 
-        // timed_out will be 1 if recvfrom times out
-        // int timed_out = 0;
-        // if (n < 0) {
-        //     timed_out = 1;
-        // }
         Packet received = to_get.my_packet;
 
         // print receiving message
@@ -159,6 +194,7 @@ int main(int argc, char *argv[])
             }
 
             free(file_buffer);
+            sending_data = 1;
 
             // response = *packet_list[curr_packet];
             // response.seq_num = received.ack_num;
@@ -174,7 +210,7 @@ int main(int argc, char *argv[])
             type = packet_type(response.type); 
             printf("Sending packet %d%s\n", response.seq_num, type); 
             continue;
-        } else if (num_packets == curr_packet) {
+        } else if (sent_packets == num_packets) {
             // send FIN if there are no more data packets to send
             response = packet_gen(received.ack_num, received.seq_num + received.payload_len, 0, size, FIN, NULL);
 
@@ -182,6 +218,8 @@ int main(int argc, char *argv[])
             send_packet(sockfd, (struct sockaddr*)&cli_addr, cli_addr_len, response);
             type = packet_type(response.type); 
             printf("Sending packet %d%s\n", response.seq_num, type); 
+
+            sending_data = 0;
             continue;
         }
 
@@ -194,17 +232,65 @@ int main(int argc, char *argv[])
         //     }
         // }
 
-        // send the file chunks
+        /**************************************************************************************************/
+        //If we reach this block of code, we send packets as normal
+
+        else if (received.type == ACK) {
+            //If timeout, should've gone to another branch
+            //Otherwise, receive the ACK
+            for (int i = 0; i < num_packets; i++) {
+                if (packet_list[i]->offset == received.ack_num && i >= start_wnd - 1) {
+                    packet_list[i]->received += 1;
+                    if (i == start_wnd) {
+                        start_wnd++;
+                        sent_packets++;
+                    }
+                }
+            }
+
+            for (int j = 0; j < num_packets; j++) { //On a dup ack, resend all packets in window
+                if (packet_list[j]->received == 4) {
+                    packet_list[j]->received = 0;
+                    for (int k = start_wnd; (k < start_wnd + wnd_size) && k < num_packets; k++) {
+                        packet_list[k]->sent = 0;
+                        resend_flag = 1;
+                    }
+                }
+            }
+
+            //After receiving ACK, send stuff in the window that isn't already sent
+            for (int i = start_wnd; i < start_wnd + wnd_size && k < num_packets; i++) {
+                if (packet_list[i]->sent == 0) {
+                    response = *packet_list[i];
+                    packet_list[i]->sent = 1;
+                    response.seq_num = received.ack_num;
+                    response.ack_num = received.seq_num + received.payload_len;
+                
+                    send_packet(sockfd, (struct sockaddr*)&cli_addr, cli_addr_len, response);
+                    type = packet_type(response.type);
+                    if (resend_flag) {
+                        printf("Sending packet %d%s Retransmission\n", response.seq_num, type);
+                        resend_flag = 0;
+                    }
+                    else 
+                        printf("Sending packet %d%s\n", response.seq_num, type);
+
+                }
+            }
+        }
+        /*
         response = *packet_list[curr_packet];
         packet_list[curr_packet]->sent = 1;
         response.seq_num = received.ack_num;
         response.ack_num = received.seq_num + received.payload_len;
         curr_packet++;
+        */
 
         // send packet and print sending message
-        send_packet(sockfd, (struct sockaddr*)&cli_addr, cli_addr_len, response);
-        type = packet_type(response.type); 
-        printf("Sending packet %d%s\n", response.seq_num, type); 
+       // send_packet(sockfd, (struct sockaddr*)&cli_addr, cli_addr_len, response);
+        //type = packet_type(response.type); 
+       // printf("Sending packet %d%s\n", response.seq_num, type); 
+        /***************************************************************************************************/
     }
 
     free(packet_list);

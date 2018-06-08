@@ -1,0 +1,40 @@
+0.
+List out all packet numbers to be sent
+packet_nums:
+0 1024 2048 3072 4096 etc..........
+
+
+1. Start with variables
+	> start_wnd = 0; (we'll treat the window in terms of packet 1, packet 2, 3, etc.)
+	> wnd_size = 4 (to index/scan from 0-4, or start_wnd to start_wnd+4)
+	> buffer = the char* where the file to be sent is stored in
+	> received_ack[NUM_PACKETS] -> all initialized to 0 initially
+		> To keep track of the packets we've received acks for
+	> has_sent[NUM_PACKETS] -> Keep track of packets we've sent already.
+	> sent_packets -> Keep track of the number of packets we've sent
+	
+
+2. Iterate through the list of packet numbers with index i.
+	While sent_packets < num_packets
+		send all packets within window
+			if has_sent[window_index] == 1 -> do not send (i.e. search from start_wnd to start_wnd + wnd_size for window_index)
+			otherwise send, and set has_sent[window_index] = 1
+
+		//Look for an ACK ---> How to implement in the code structure we have right now???
+		1. If there's a timeout
+			>Do another iteration of the while loop, with following actions
+			>Set has_sent[window_index] = 0 (in order to resend everything in the window)
+			>Maintain window
+		2. If we receive an ACK
+			received_ack[ACKNUM/PACKET_SIZE] += 1
+			if the ACK corresponds to the start_wnd
+				move the window up by one (start_wnd++)
+				sent_packets++
+			if any element in received_ack == 3
+				>Set that element in received_ack = 0
+				>Set has_sent[window_index] = 0 for all the packets in the window 
+				>Continue, another iteration in the while loop
+
+		
+
+
