@@ -68,67 +68,66 @@ int main(int argc, char *argv[])
     // receive packets from the server
     while (1) {
         // setup check for connection timeout
-        FD_ZERO(&sockets);
-        FD_SET(sockfd, &sockets);
+        // FD_ZERO(&sockets);
+        // FD_SET(sockfd, &sockets);
 
-        struct timeval connection_timeout = {1, 0};
-        int ret = select(sockfd+1, &sockets, NULL, NULL, &connection_timeout);
-        if (ret < 0) {
-            fclose(received_bytes);
-            error("ERROR, select failed");
-        } else if (ret == 0) {
-            // timeout expired
-            if (gotfile_flag) {
-                // finished getting the file and then the socket failed
-                // technically don't need to maintain the connection
-                error("ERROR, retrieved file, but unable to terminate connection");
-            } else if (!response_flag) {
-                // client only sends one packet with data so if request hasn't been confirmed retry connection
-                send_packet(sockfd, (struct sockaddr*)&serv_addr, serv_addr_len, request);
-                printf("Sending packet Retransmission SYN\n");
-                continue;
-            } 
-        }
+        // struct timeval connection_timeout = {1, 0};
+        // int ret = select(sockfd+1, &sockets, NULL, NULL, &connection_timeout);
+        // if (ret < 0) {
+        //     fclose(received_bytes);
+        //     error("ERROR, select failed");
+        // } else if (ret == 0) {
+        //     // timeout expired
+        //     if (gotfile_flag) {
+        //         // finished getting the file and then the socket failed
+        //         // technically don't need to maintain the connection
+        //         error("ERROR, retrieved file, but unable to terminate connection");
+        //     } else if (!response_flag) {
+        //         // client only sends one packet with data so if request hasn't been confirmed retry connection
+        //         send_packet(sockfd, (struct sockaddr*)&serv_addr, serv_addr_len, request);
+        //         printf("Sending packet Retransmission SYN\n");
+        //         continue;
+        //     } 
+        // }
 
         // socket is readable
-        if (FD_ISSET(sockfd, &sockets)) {
-            // retrieve the packet
-            Packet received = recv_packet(sockfd, (struct sockaddr*) &serv_addr, serv_addr_len);
-            char* type = packet_type(received.type); 
-            printf("Receiving packet %d%s\n", received.ack_num, type);
+        // if (FD_ISSET(sockfd, &sockets)) {
+        // retrieve the packet
+        Packet received = recv_packet(sockfd, (struct sockaddr*) &serv_addr, serv_addr_len);
+        char* type = packet_type(received.type); 
+        printf("Receiving packet %d%s\n", received.ack_num, type);
 
-            // save contents of payload to file
-            fwrite(received.payload, received.payload_len, 1, received_bytes);
+        // save contents of payload to file
+        fwrite(received.payload, received.payload_len, 1, received_bytes);
 
-            Packet response;
-            // create the response packet
-            if (received.type == SYN_ACK) {
-                // finish 3-way handshake
-                response = packet_gen(1, 1, sizeof(file), 0, ACK, file);
-                response_flag = 1;
-            } else if (received.type == FIN) {
-                // accept connection termination
-                response = packet_gen(received.ack_num, received.seq_num + received.payload_len+1, 0, 0, FIN_ACK, NULL);
-                gotfile_flag = 1;
-            } else if (received.type == ACK) {
-                // terminate the connection
-                break;
-            } else {
-                // send packets normally
-                response = packet_gen(received.ack_num, received.seq_num + received.payload_len, 0, 0, ACK, NULL);
-            }
-
-            // send packet and print sending message
-            send_packet(sockfd, (struct sockaddr*)&serv_addr, serv_addr_len, response);
-            type = packet_type(response.type); 
-            
-            // if the current packet is from before the current window
-            // if (received.offset < window_base) {
-            //     printf("Sending packet %d Retransmission %s\n");
-            // } else {
-                printf("Sending packet %d%s\n", response.seq_num, type); 
-            // }
+        Packet response;
+        // create the response packet
+        if (received.type == SYN_ACK) {
+            // finish 3-way handshake
+            response = packet_gen(1, 1, sizeof(file), 0, ACK, file);
+            response_flag = 1;
+        } else if (received.type == FIN) {
+            // accept connection termination
+            response = packet_gen(received.ack_num, received.seq_num + received.payload_len+1, 0, 0, FIN_ACK, NULL);
+            gotfile_flag = 1;
+        } else if (received.type == ACK) {
+            // terminate the connection
+            break;
+        } else {
+            // send packets normally
+            response = packet_gen(received.ack_num, received.seq_num + received.payload_len, 0, 0, ACK, NULL);
         }
+
+        // send packet and print sending message
+        send_packet(sockfd, (struct sockaddr*)&serv_addr, serv_addr_len, response);
+        type = packet_type(response.type); 
+        
+        // if the current packet is from before the current window
+        // if (received.offset < window_base) {
+        //     printf("Sending packet %d Retransmission %s\n");
+        // } else {
+        printf("Sending packet %d%s\n", response.seq_num, type); 
+        // }
     }
 
     // close file at the end
