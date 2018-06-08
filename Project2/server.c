@@ -84,7 +84,7 @@ int main(int argc, char *argv[])
     while(fin_flag) {
         // retrieve the packet
         Bytes to_get;
-        ssize_t n = recvfrom(sockfd, to_get.bytes, PACKET_SIZE, 0, (struct sockaddr*) &cli_addr, cli_addr_len);
+        ssize_t n = recvfrom(sockfd, to_get.bytes, PACKET_SIZE, 0, (struct sockaddr*) &cli_addr, &cli_addr_len);
 
         // timed_out will be 1 if recvfrom times out
         // int timed_out = 0;
@@ -102,6 +102,12 @@ int main(int argc, char *argv[])
         // create the SYN ACK
         if (received.type == SYN) {
             response = packet_gen(0, 1, 0, 0, SYN_ACK, NULL);
+
+            // send packet and print sending message
+            send_packet(sockfd, (struct sockaddr*)&cli_addr, cli_addr_len, response);
+            type = packet_type(response.type); 
+            printf("Sending packet %d%s\n", response.seq_num, type); 
+            continue;
         } else if (received.type == ACK && size == -1) {
             // If the received packet is an ACK, then split the file into packets for transfer
             char file[PAYLOAD_SIZE];
@@ -154,34 +160,46 @@ int main(int argc, char *argv[])
 
             free(file_buffer);
 
-            response = *packet_list[curr_packet];
-            response.seq_num = received.ack_num;
-            response.ack_num = received.seq_num + received.payload_len;
-            curr_packet++;
+            // response = *packet_list[curr_packet];
+            // response.seq_num = received.ack_num;
+            // response.ack_num = received.seq_num + received.payload_len;
+            // curr_packet++;
         } else if (received.type == FIN_ACK) {
             // send ACK if FIN ACK is received
             response = packet_gen(received.ack_num, received.seq_num + received.payload_len+1, 0, size, ACK, NULL);
             fin_flag = 0;
+
+            // send packet and print sending message
+            send_packet(sockfd, (struct sockaddr*)&cli_addr, cli_addr_len, response);
+            type = packet_type(response.type); 
+            printf("Sending packet %d%s\n", response.seq_num, type); 
+            continue;
         } else if (num_packets == curr_packet) {
             // send FIN if there are no more data packets to send
             response = packet_gen(received.ack_num, received.seq_num + received.payload_len, 0, size, FIN, NULL);
-        } else {
-            // mark packets in list as received if they were received
-            // if (packet_list != NULL) {
-            //     for (int i = 0; i < num_packets; i++) {
-            //         if (packet_list[i]->offset == received.ack_num) {
-            //             packet_list[i]->received = 1;
-            //         }
-            //     }
-            // }
 
-            // send the file chunks
-            response = *packet_list[curr_packet];
-            packet_list[curr_packet]->sent = 1;
-            response.seq_num = received.ack_num;
-            response.ack_num = received.seq_num + received.payload_len;
-            curr_packet++;
+            // send packet and print sending message
+            send_packet(sockfd, (struct sockaddr*)&cli_addr, cli_addr_len, response);
+            type = packet_type(response.type); 
+            printf("Sending packet %d%s\n", response.seq_num, type); 
+            continue;
         }
+
+        // mark packets in list as received if they were received
+        // if (packet_list != NULL) {
+        //     for (int i = 0; i < num_packets; i++) {
+        //         if (packet_list[i]->offset == received.ack_num) {
+        //             packet_list[i]->received = 1;
+        //         }
+        //     }
+        // }
+
+        // send the file chunks
+        response = *packet_list[curr_packet];
+        packet_list[curr_packet]->sent = 1;
+        response.seq_num = received.ack_num;
+        response.ack_num = received.seq_num + received.payload_len;
+        curr_packet++;
 
         // send packet and print sending message
         send_packet(sockfd, (struct sockaddr*)&cli_addr, cli_addr_len, response);
@@ -189,9 +207,6 @@ int main(int argc, char *argv[])
         printf("Sending packet %d%s\n", response.seq_num, type); 
     }
 
-    for (int i = 0; i < num_packets; i++) {
-        free(packet_list[i]);
-    }
     free(packet_list);
     return 0;
 }
