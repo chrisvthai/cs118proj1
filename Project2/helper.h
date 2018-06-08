@@ -10,7 +10,7 @@
 #include <string.h>
 
 #define PACKET_SIZE 1024 // max packet size
-#define PAYLOAD_SIZE (PACKET_SIZE - 4 * sizeof(int) - sizeof(enum Type)) // max packet size that can fit in the payload
+#define PAYLOAD_SIZE (PACKET_SIZE - 6 * sizeof(int) - sizeof(enum Type)) // max packet size that can fit in the payload
 
 // establishing and taking down a connection
 enum Type {NONE, SYN, SYN_ACK, ACK, FIN, FIN_ACK};
@@ -24,6 +24,8 @@ typedef struct {
     int ack_num;
     int payload_len;
     int offset;
+    int received; // received by client
+    int sent;     // sent by server
     enum Type type;
     char payload[PAYLOAD_SIZE];
 } Packet;

@@ -71,16 +71,27 @@ int main(int argc, char *argv[])
 
     // assumption that the requested file is in the current directory
 
+    // set the timeout for receiving packets from the socket
+    // setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&TIMEOUT, sizeof(TIMEOUT));
+
     // array of packets for easy access
     Packet** packet_list = 0;
     int num_packets = 0;
     int curr_packet = 0;
     int fin_flag = 1;
-    long int size; // size of file
+    long int size = -1; // size of file
 
     while(fin_flag) {
         // retrieve the packet
-        Packet received = recv_packet(sockfd, (struct sockaddr*) &cli_addr, cli_addr_len);
+        Bytes to_get;
+        ssize_t n = recvfrom(sockfd, to_get.bytes, PACKET_SIZE, 0, (struct sockaddr*) &cli_addr, cli_addr_len);
+
+        // timed_out will be 1 if recvfrom times out
+        // int timed_out = 0;
+        // if (n < 0) {
+        //     timed_out = 1;
+        // }
+        Packet received = to_get.my_packet;
 
         // print receiving message
         char* type = packet_type(received.type); 
@@ -91,7 +102,7 @@ int main(int argc, char *argv[])
         // create the SYN ACK
         if (received.type == SYN) {
             response = packet_gen(0, 1, 0, 0, SYN_ACK, NULL);
-        } else if (received.type == ACK) {
+        } else if (received.type == ACK && size == -1) {
             // If the received packet is an ACK, then split the file into packets for transfer
             char file[PAYLOAD_SIZE];
             memset(file, 0, PAYLOAD_SIZE);
@@ -132,6 +143,8 @@ int main(int argc, char *argv[])
                 new_packet->ack_num = -1;
                 new_packet->payload_len = payload_len;
                 new_packet->offset = offset;
+                new_packet->received = 0;
+                new_packet->sent = 0;
                 new_packet->type = NONE;
                 strcpy(new_packet->payload, payload);
 
@@ -153,8 +166,18 @@ int main(int argc, char *argv[])
             // send FIN if there are no more data packets to send
             response = packet_gen(received.ack_num, received.seq_num + received.payload_len, 0, size, FIN, NULL);
         } else {
+            // mark packets in list as received if they were received
+            // if (packet_list != NULL) {
+            //     for (int i = 0; i < num_packets; i++) {
+            //         if (packet_list[i]->offset == received.ack_num) {
+            //             packet_list[i]->received = 1;
+            //         }
+            //     }
+            // }
+
             // send the file chunks
             response = *packet_list[curr_packet];
+            packet_list[curr_packet]->sent = 1;
             response.seq_num = received.ack_num;
             response.ack_num = received.seq_num + received.payload_len;
             curr_packet++;

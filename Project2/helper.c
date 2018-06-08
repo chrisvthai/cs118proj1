@@ -52,10 +52,13 @@ char* packet_type(enum Type p_type) {
 }
 
 // Creates a packet
-Packet packet_gen(int seq, int ack, int p_len, enum Type t, const char* data) {
+Packet packet_gen(int seq, int ack, int p_len, int offset, enum Type t, const char* data) {
     Packet temp = {
         .seq_num = seq,
         .ack_num = ack, 
+        .offset = offset,
+        .received = 0,
+        .sent = 0,
         .payload_len = p_len,
         .type = t
     };
@@ -65,3 +68,14 @@ Packet packet_gen(int seq, int ack, int p_len, enum Type t, const char* data) {
 
     return temp;
 }
+
+// void pack_rcvd(Packet** p_list, int n, int ack) {
+//     if(p_list == NULL) {
+//         return;
+//     }
+//     for (int i = 0; i < n; i++) {
+//         if (p_list[i]->offset == ack) {
+//             p_list[i]->received = 1;
+//         }
+//     }
+// }

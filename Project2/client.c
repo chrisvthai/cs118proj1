@@ -81,12 +81,12 @@ int main(int argc, char *argv[])
             if (gotfile_flag) {
                 // finished getting the file and then the socket failed
                 // technically don't need to maintain the connection
-                error("ERROR, retrieved file, but unable to terminate conenction");
+                error("ERROR, retrieved file, but unable to terminate connection");
             } else if (!response_flag) {
-                // client only sends one packet with data so if request hasn't been confirmed resend
-                // other packets don't need to be resent
+                // client only sends one packet with data so if request hasn't been confirmed retry connection
                 send_packet(sockfd, (struct sockaddr*)&serv_addr, serv_addr_len, request);
                 printf("Sending packet Retransmission SYN\n");
+                continue;
             } 
         }
 
@@ -115,7 +115,7 @@ int main(int argc, char *argv[])
                 break;
             } else {
                 // send packets normally
-                response = packet_gen(received.ack_num, received.seq_num + received.payload_len, 0, 0, NONE, NULL);
+                response = packet_gen(received.ack_num, received.seq_num + received.payload_len, 0, 0, ACK, NULL);
             }
 
             // send packet and print sending message
@@ -126,7 +126,7 @@ int main(int argc, char *argv[])
             // if (received.offset < window_base) {
             //     printf("Sending packet %d Retransmission %s\n");
             // } else {
-            //     printf("Sending packet %d%s\n", response.seq_num, type); 
+                printf("Sending packet %d%s\n", response.seq_num, type); 
             // }
         }
     }
