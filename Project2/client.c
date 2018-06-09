@@ -64,6 +64,9 @@ int main(int argc, char *argv[])
     fd_set sockets;
     int response_flag = 0;
     int gotfile_flag = 0;
+    int curr_offset = 0;
+    int latest_ack = 0;
+    int retransmission = 0;
 
     // receive packets from the server
     while (1) {
@@ -93,6 +96,7 @@ int main(int argc, char *argv[])
         // socket is readable
         // if (FD_ISSET(sockfd, &sockets)) {
         // retrieve the packet
+        retransmission = 0;
         Packet received = recv_packet(sockfd, (struct sockaddr*) &serv_addr, serv_addr_len);
         char* type = packet_type(received.type); 
         printf("Receiving packet %d%s\n", received.ack_num, type);
@@ -116,18 +120,33 @@ int main(int argc, char *argv[])
             break;
         } else {
             // send packets normally
-            response = packet_gen(received.ack_num + sizeof(response), received.seq_num + sizeof(received), sizeof(response), 0, ACK, NULL);
+            if (curr_offset == received.offset) {
+                printf("In order packet\n");
+                response = packet_gen(received.ack_num + sizeof(response), received.seq_num + sizeof(received), sizeof(response), 0, ACK, NULL);
+	        curr_offset += PAYLOAD_SIZE;
+                latest_ack = received.seq_num + sizeof(response);
+	    } else {
+                printf("Out of order packet\n");
+                response = packet_gen(received.ack_num + sizeof(response), latest_ack, sizeof(response), 0, ACK, NULL);
+            }
         }
 
         // send packet and print sending message
         send_packet(sockfd, (struct sockaddr*)&serv_addr, serv_addr_len, response);
-        type = packet_type(response.type); 
+        type = packet_type(response.type);
+
+        if (retransmission) {
+            printf("Sending packet %d Retransmission%s\n", response.seq_num, type);
+	} else {
+	    printf("Sending packet %d%s\n", response.seq_num, type);
+	}
+	//printf("Offset of packet received: %d\n", received.offset);
         
         // if the current packet is from before the current window
         // if (received.offset < window_base) {
         //     printf("Sending packet %d Retransmission %s\n");
         // } else {
-        printf("Sending packet %d%s\n", response.seq_num, type); 
+    
         // }
     }
 

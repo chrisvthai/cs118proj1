@@ -120,7 +120,7 @@ int main(int argc, char *argv[])
                 send_packet(sockfd, (struct sockaddr*)&cli_addr, cli_addr_len, response);
                 char* type = packet_type(response.type);
                 
-                printf("Sending packet %d%s Retransmission\n", response.seq_num, type);     
+                printf("Sending packet %d Retransmission%s\n", response.seq_num, type);     
             }
             continue;
         }
@@ -214,7 +214,7 @@ int main(int argc, char *argv[])
             continue;
         } else if (sent_packets == num_packets) {
             // send FIN if there are no more data packets to send
-            printf("sent_packets:%d is equal to num_packets:%d");
+            //printf("sent_packets:%d is equal to num_packets:%d");
             response = packet_gen(received.ack_num, received.seq_num + received.payload_len, 0, size, FIN, NULL);
 
             // send packet and print sending message
@@ -280,7 +280,7 @@ int main(int argc, char *argv[])
                     send_packet(sockfd, (struct sockaddr*)&cli_addr, cli_addr_len, response);
                     type = packet_type(response.type);
                     if (resend_flag) {
-                        printf("Sending packet %d%s Retransmission\n", response.seq_num, type);
+                        printf("Sending packet %d Retransmission%s\n", response.seq_num, type);
                         resend_flag = 0;
                     }
                     else { 
