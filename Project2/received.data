@@ -1,3 +1,222 @@
+/*
+ A simple client in the internet domain using TCP
+ Usage: ./client hostname port (./client 192.168.0.151 10000)
+ */
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h>      // define structures like hostent
+#include <unistd.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include <sys/time.h>
+#include <sys/types.h>
+#include "helper.h"
+
+int main(int argc, char *argv[])
+{
+    int sockfd;  // socket descriptor
+    int portno, n;
+    struct sockaddr_in serv_addr;
+    struct hostent *server;  // contains tons of information, including the server's IP address
+
+    char buffer[256];
+    if (argc < 4) {
+       fprintf(stderr, "Usage: ./%s hostname portno filename\n", argv[0]);
+       exit(1);
+    }
+
+    portno = atoi(argv[2]);
+    sockfd = socket(AF_INET, SOCK_DGRAM, 0);  // create a new socket
+    if (sockfd < 0)
+        error("ERROR opening socket");
+
+    server = gethostbyname(argv[1]);  // takes a string like "www.yahoo.com", and returns a struct hostent which contains information, as IP address, address type, the length of the addresses...
+    if (server == NULL) {
+        fprintf(stderr, "ERROR, no such host\n");
+        exit(1);
+    }
+
+    memset((char *) &serv_addr, 0, sizeof(serv_addr));
+    serv_addr.sin_family = AF_INET; //initialize server's address
+    bcopy((char *)server->h_addr, (char *) &serv_addr.sin_addr.s_addr, server->h_length);
+    serv_addr.sin_port = htons(portno);
+    socklen_t serv_addr_len = sizeof(serv_addr);
+
+    // retrieve filename
+    char* file = argv[3];
+
+    // setup file to receive data
+    FILE* received_bytes;
+    received_bytes = fopen("received.data", "a");
+    if (received_bytes == NULL) {
+        error("ERROR, unable to create a file to write to.");
+    }
+
+    // send SYN to begin establishing connection to server
+    Packet request = packet_gen(0, 0, 0, 0, SYN, NULL);
+    send_packet(sockfd, (struct sockaddr*)&serv_addr, serv_addr_len, request);
+    printf("Sending packet %d SYN\n", request.seq_num);
+
+    // setup select
+    fd_set sockets;
+    int response_flag = 0;
+    int gotfile_flag = 0;
+
+    // receive packets from the server
+    while (1) {
+        // setup check for connection timeout
+        // FD_ZERO(&sockets);
+        // FD_SET(sockfd, &sockets);
+
+        // struct timeval connection_timeout = {1, 0};
+        // int ret = select(sockfd+1, &sockets, NULL, NULL, &connection_timeout);
+        // if (ret < 0) {
+        //     fclose(received_bytes);
+        //     error("ERROR, select failed");
+        // } else if (ret == 0) {
+        //     // timeout expired
+        //     if (gotfile_flag) {
+        //         // finished getting the file and then the socket failed
+        //         // technically don't need to maintain the connection
+        //         error("ERROR, retrieved file, but unable to terminate connection");
+        //     } else if (!response_flag) {
+        //         // client only sends one packet with data so if request hasn't been confirmed retry connection
+        //         send_packet(sockfd, (struct sockaddr*)&serv_addr, serv_addr_len, request);
+        //         printf("Sending packet Retransmission SYN\n");
+        //         continue;
+        //     } 
+        // }
+
+        // socket is readable
+        // if (FD_ISSET(sockfd, &sockets)) {
+        // retrieve the packet
+        Packet received = recv_packet(sockfd, (struct sockaddr*) &serv_addr, serv_addr_len);
+        char* type = packet_type(received.type); 
+        printf("Receiving packet %d%s\n", received.ack_num, type);
+       // printf("It's data payload was %s\n", received.payload);
+
+        // save contents of payload to file
+        fwrite(received.payload, received.payload_len, 1, received_bytes);
+
+        Packet response;
+        // create the response packet
+        if (received.type == SYN_ACK) {
+            // finish 3-way handshake
+            response = packet_gen(1, 1, sizeof(file), 0, ACK, file);
+            response_flag = 1;
+        } else if (received.type == FIN) {
+            // accept connection termination
+            response = packet_gen(received.ack_num, received.seq_num + received.payload_len+1, 0, 0, FIN_ACK, NULL);
+            gotfile_flag = 1;
+        } else if (received.type == ACK) {
+            // terminate the connection
+            break;
+        } else {
+            // send packets normally
+            response = packet_gen(received.ack_num + sizeof(response), received.seq_num + sizeof(received), sizeof(response), 0, ACK, NULL);
+        }
+
+        // send packet and print sending message
+        send_packet(sockfd, (struct sockaddr*)&serv_addr, serv_addr_len, response);
+        type = packet_type(response.type); 
+        
+        // if the current packet is from before the current window
+        // if (received.offset < window_base) {
+        //     printf("Sending packet %d Retransmission %s\n");
+        // } else {
+        printf("Sending packet %d%s\n", response.seq_num, type); 
+        // }
+    }
+
+    // close file at the end
+    fclose(received_bytes);
+
+    return 0;
+}
+#include "helper.h"
+
+// prints error message and exits form program with error
+void error(char *msg) {
+    perror(msg);
+    exit(1);
+}
+
+// send a packet
+void send_packet(int sockfd, struct sockaddr *src_addr, socklen_t addrlen, Packet to_send) {
+    Bytes b_send = {
+        .my_packet = to_send
+    };
+    ssize_t n = sendto(sockfd, b_send.bytes, PACKET_SIZE, 0, src_addr, addrlen);
+    if (n < 0) {
+        error("ERROR, problem with sending data to socket.\n");
+    }
+}
+
+// retrieve a packet
+Packet recv_packet(int sockfd, struct sockaddr *src_addr, socklen_t addrlen) {
+    Bytes to_get;
+    ssize_t n = recvfrom(sockfd, to_get.bytes, PACKET_SIZE, 0, src_addr, &addrlen);
+    if (n < 0) {
+        error("ERROR, couldn't retrieve packet");
+    }
+    Packet new_packet = to_get.my_packet;
+
+    return new_packet;
+}
+
+// returns the type of response
+char* packet_type(enum Type p_type) {
+    char* temp;
+    switch (p_type) {
+        case(SYN):
+            temp = " SYN";
+            break;
+        case(SYN_ACK):
+            temp = " SYN";
+            break;
+        case(FIN):
+            temp = " FIN";
+            break;
+        case(FIN_ACK):
+            temp = " FIN";
+            break;
+        default:
+            temp = " ACK";
+    }
+    return temp;
+}
+
+// Creates a packet
+Packet packet_gen(int seq, int ack, int p_len, int offset, enum Type t, const char* data) {
+    Packet temp = {
+        .seq_num = seq,
+        .ack_num = ack, 
+        .offset = offset,
+        .received = 0,
+        .sent = 0,
+        .payload_len = p_len,
+        .type = t
+    };
+    if (data != NULL) {
+        strncpy(temp.payload, data, p_len);
+    }
+
+    return temp;
+}
+
+// void pack_rcvd(Packet** p_list, int n, int ack) {
+//     if(p_list == NULL) {
+//         return;
+//     }
+//     for (int i = 0; i < n; i++) {
+//         if (p_list[i]->offset == ack) {
+//             p_list[i]->received = 1;
+//         }
+//     }
+// }
 /* A simple server in the internet domain using TCP
    The port number is passed as an argument
    This version runs forever, forking off a separate

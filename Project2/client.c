@@ -96,6 +96,7 @@ int main(int argc, char *argv[])
         Packet received = recv_packet(sockfd, (struct sockaddr*) &serv_addr, serv_addr_len);
         char* type = packet_type(received.type); 
         printf("Receiving packet %d%s\n", received.ack_num, type);
+       // printf("It's data payload was %s\n", received.payload);
 
         // save contents of payload to file
         fwrite(received.payload, received.payload_len, 1, received_bytes);
@@ -115,7 +116,7 @@ int main(int argc, char *argv[])
             break;
         } else {
             // send packets normally
-            response = packet_gen(received.ack_num, received.seq_num + received.payload_len, 0, 0, ACK, NULL);
+            response = packet_gen(received.ack_num + sizeof(response), received.seq_num + sizeof(received), sizeof(response), 0, ACK, NULL);
         }
 
         // send packet and print sending message

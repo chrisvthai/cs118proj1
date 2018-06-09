@@ -1,7 +1,7 @@
 # TODO: Test that this compiles everything properly
 
 CC = gcc
-CLFLAGS = -O2 -lm
+CFLAGS = -lm
 SERVER_FILES = helper.c server.c 
 CLIENT_FILES = helper.c client.c 
 ALL_FILES = client server received.data

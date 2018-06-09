@@ -46,7 +46,7 @@ char* packet_type(enum Type p_type) {
             temp = " FIN";
             break;
         default:
-            temp = "";
+            temp = " ACK";
     }
     return temp;
 }
