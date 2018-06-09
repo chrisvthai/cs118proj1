@@ -92,7 +92,9 @@ int main(int argc, char *argv[])
     int timed_out;
 
     timeout.tv_sec = 0;
-    timeout.tv_sec = 500000;
+    timeout.tv_usec = 500000;
+    // FD_ZERO(&rfds);
+    // FD_SET(sockfd, &rfds);
 
     while(fin_flag) {
 
@@ -101,19 +103,22 @@ int main(int argc, char *argv[])
         //TODO: Should there be a select call here to implement the timeout??
         //Should we then have another conditional branch that'll handle it?
         Bytes to_get;
-	Packet response;
+	    Packet response;
 
         //Timeout check
         FD_ZERO(&rfds);
         FD_SET(sockfd, &rfds);
+        timeout.tv_sec = 0;
+        timeout.tv_usec = 500000;
 
         timed_out = select(sockfd+1, &rfds, NULL, NULL, &timeout);
-        if (timed_out < 1 && sending_data) {
+        if (timed_out == 0 && sending_data) {
             //Insert timeout code
-            for (int i = start_wnd; i < start_wnd + wnd_size && i < num_packets; i++) {
-               
+            for (int i = start_wnd; i <= start_wnd + wnd_size && i < num_packets; i++) {
                 response = *packet_list[i];
                 packet_list[i]->sent = 1;
+                // printf("strt win: %d\n", start_wnd);
+                // printf("ack: %d, seq: %d\n", response.ack_num, response.seq_num);
                 //response.seq_num = received.ack_num;
                 //response.ack_num = received.seq_num + received.payload_len;
                 
@@ -196,7 +201,6 @@ int main(int argc, char *argv[])
 
             free(file_buffer);
             sending_data = 1;
-            printf("Finished dividing up file into %d packets\n", num_packets);
 
             // response = *packet_list[curr_packet];
             // response.seq_num = received.ack_num;
@@ -257,7 +261,6 @@ int main(int argc, char *argv[])
 		//printf("checking packet %d\n", a);
 		//printf("packet_list[%d]->received == %d\n", a, packet_list[a]->received);
                 if (packet_list[a]->received == 4) {
-		    printf("EGAD dup ack!\n");
                     packet_list[a]->received = 0;
                     for (int k = start_wnd; k <= start_wnd + wnd_size && k < num_packets; k++) {
                         packet_list[k]->sent = 0;
@@ -276,6 +279,9 @@ int main(int argc, char *argv[])
                     packet_list[b]->sent = 1;
                     response.seq_num = received.ack_num+(sizeof(response)*(b-start_wnd));
                     response.ack_num = received.seq_num + sizeof(received);
+
+                    packet_list[b]->seq_num = received.ack_num+(sizeof(response)*(b-start_wnd));
+                    packet_list[b]->ack_num = received.seq_num + sizeof(received);
                 
                     send_packet(sockfd, (struct sockaddr*)&cli_addr, cli_addr_len, response);
                     type = packet_type(response.type);

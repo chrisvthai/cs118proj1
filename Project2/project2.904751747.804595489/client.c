@@ -103,7 +103,7 @@ int main(int argc, char *argv[])
        // printf("It's data payload was %s\n", received.payload);
 
         // save contents of payload to file
-        fwrite(received.payload, received.payload_len, 1, received_bytes);
+        // fwrite(received.payload, received.payload_len, 1, received_bytes);
 
         Packet response;
         // create the response packet
@@ -121,12 +121,13 @@ int main(int argc, char *argv[])
         } else {
             // send packets normally
             if (curr_offset == received.offset) {
-                printf("In order packet\n");
                 response = packet_gen(received.ack_num + sizeof(response), received.seq_num + sizeof(received), sizeof(response), 0, ACK, NULL);
-	        curr_offset += PAYLOAD_SIZE;
+	            curr_offset += PAYLOAD_SIZE;
                 latest_ack = received.seq_num + sizeof(response);
+
+                // save contents of payload to file
+                fwrite(received.payload, received.payload_len, 1, received_bytes);
 	    } else {
-                printf("Out of order packet\n");
                 response = packet_gen(received.ack_num + sizeof(response), latest_ack, sizeof(response), 0, ACK, NULL);
             }
         }
